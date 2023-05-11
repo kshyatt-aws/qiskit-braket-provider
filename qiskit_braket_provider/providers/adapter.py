@@ -2,7 +2,7 @@
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 from braket.aws import AwsDevice
-from braket.circuits import Circuit, Instruction, gates, result_types
+from braket.circuits import Circuit, Instruction, FreeParameter, gates, result_types
 from braket.device_schema import (
     DeviceActionType,
     GateModelQpuParadigmProperties,
@@ -19,7 +19,8 @@ from braket.devices import LocalSimulator
 from numpy import pi
 from qiskit import QuantumCircuit
 from qiskit.circuit import Instruction as QiskitInstruction
-from qiskit.circuit import Measure, Parameter
+from qiskit.circuit import Measure, Parameter, ParameterExpression
+from qiskit.circuit.parametervector import ParameterVectorElement
 from qiskit.circuit.library import (
     CCXGate,
     CPhaseGate,
@@ -88,18 +89,51 @@ qiskit_to_braket_gate_names_mapping = {
 }
 
 
+def to_angle(
+    angle: Union[int, float, ParameterVectorElement, Parameter, ParameterExpression]
+):
+    """Converts the input angle to Braket format.
+
+    Args:
+        angle: input angle to a gate
+
+    Returns:
+        float, int, or FreeParameter
+    """
+    if isinstance(angle, (float, int)):
+        return float(angle)
+    elif isinstance(angle, ParameterVectorElement):
+        if len(angle.vector) == 1:
+            return FreeParameter(angle.vector.name)
+        else:
+            return FreeParameter(angle.name.replace("[", "").replace("]", ""))
+    elif isinstance(angle, Parameter):
+        return FreeParameter(angle.name)
+    elif isinstance(angle, ParameterExpression):
+        if angle.parameters:
+            return to_angle(list(angle.parameters)[0])
+        else:
+            return float(angle)
+    else:
+        raise TypeError()
+
+
 qiskit_gate_names_to_braket_gates: Dict[str, Callable] = {
-    "u1": lambda lam: [gates.Rz(lam)],
-    "u2": lambda phi, lam: [gates.Rz(lam), gates.Ry(pi / 2), gates.Rz(phi)],
-    "u3": lambda theta, phi, lam: [
-        gates.Rz(lam),
-        gates.Rx(pi / 2),
-        gates.Rz(theta),
-        gates.Rx(-pi / 2),
-        gates.Rz(phi),
+    "u1": lambda lam: [gates.Rz(to_angle(lam))],
+    "u2": lambda phi, lam: [
+        gates.Rz(to_angle(lam)),
+        gates.Ry(pi / 2),
+        gates.Rz(to_angle(phi)),
     ],
-    "p": lambda angle: [gates.PhaseShift(angle)],
-    "cp": lambda angle: [gates.CPhaseShift(angle)],
+    "u3": lambda theta, phi, lam: [
+        gates.Rz(to_angle(lam)),
+        gates.Rx(pi / 2),
+        gates.Rz(to_angle(theta)),
+        gates.Rx(-pi / 2),
+        gates.Rz(to_angle(phi)),
+    ],
+    "p": lambda angle: [gates.PhaseShift(to_angle(angle))],
+    "cp": lambda angle: [gates.CPhaseShift(to_angle(angle))],
     "cx": lambda: [gates.CNot()],
     "x": lambda: [gates.X()],
     "y": lambda: [gates.Y()],
@@ -111,18 +145,18 @@ qiskit_gate_names_to_braket_gates: Dict[str, Callable] = {
     "sx": lambda: [gates.V()],
     "sxdg": lambda: [gates.Vi()],
     "swap": lambda: [gates.Swap()],
-    "rx": lambda angle: [gates.Rx(angle)],
-    "ry": lambda angle: [gates.Ry(angle)],
-    "rz": lambda angle: [gates.Rz(angle)],
-    "rzz": lambda angle: [gates.ZZ(angle)],
+    "rx": lambda angle: [gates.Rx(to_angle(angle))],
+    "ry": lambda angle: [gates.Ry(to_angle(angle))],
+    "rz": lambda angle: [gates.Rz(to_angle(angle))],
+    "rzz": lambda angle: [gates.ZZ(to_angle(angle))],
     "id": lambda: [gates.I()],
     "h": lambda: [gates.H()],
     "cy": lambda: [gates.CY()],
     "cz": lambda: [gates.CZ()],
     "ccx": lambda: [gates.CCNot()],
     "cswap": lambda: [gates.CSwap()],
-    "rxx": lambda angle: [gates.XX(angle)],
-    "ryy": lambda angle: [gates.YY(angle)],
+    "rxx": lambda angle: [gates.XX(to_angle(angle))],
+    "ryy": lambda angle: [gates.YY(to_angle(angle))],
     "ecr": lambda: [gates.ECR()],
 }
 
@@ -357,6 +391,10 @@ def convert_qiskit_to_braket_circuit(circuit: QuantumCircuit) -> Circuit:
         elif name == "barrier":
             # This does not exist
             pass
+        elif name == "PauliEvolution":
+            quantum_circuit += convert_qiskit_to_braket_circuit(
+                qiskit_gates[0].definition.decompose()
+            )
         else:
             params = []
             if hasattr(qiskit_gates[0], "params"):
