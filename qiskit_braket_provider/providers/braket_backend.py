@@ -130,6 +130,7 @@ class BraketLocalBackend(BraketBackend):
         convert_input = (
             [run_input] if isinstance(run_input, QuantumCircuit) else list(run_input)
         )
+        print("Number of circuits: ", len(convert_input), flush=True)
         verbatim = options.pop("verbatim", False)
         gateset = self._get_gateset() if not verbatim else None
         circuits: list[Circuit] = [
