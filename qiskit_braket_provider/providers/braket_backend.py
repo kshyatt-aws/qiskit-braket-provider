@@ -142,6 +142,7 @@ class BraketLocalBackend(BraketBackend):
         if "meas_level" in options:
             self._validate_meas_level(options["meas_level"])
             del options["meas_level"]
+        print("Number of circuits: ", len(circuits), flush=True)
         tasks = []
         try:
             batch_task: LocalQuantumTaskBatch = self._device.run_batch(
@@ -157,6 +158,8 @@ class BraketLocalBackend(BraketBackend):
                 task.cancel()
                 logger.error("State of %s: %s.", task.id, task.state())
             raise ex
+        
+        print("Done circuits", flush=True)
 
         task_id = _TASK_ID_DIVIDER.join(task.id for task in tasks)
 
