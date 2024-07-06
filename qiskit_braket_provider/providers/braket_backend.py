@@ -14,6 +14,7 @@ from braket.circuits import Circuit
 from braket.device_schema import DeviceActionType
 from braket.devices import Device, LocalSimulator
 from braket.tasks.local_quantum_task import LocalQuantumTask
+from braket.tasks.local_quantum_task_batch import LocalQuantumTaskBatch
 from qiskit import QuantumCircuit
 from qiskit.providers import BackendV2, Options, Provider, QubitProperties
 
@@ -143,11 +144,10 @@ class BraketLocalBackend(BraketBackend):
             del options["meas_level"]
         tasks = []
         try:
-            for circuit in circuits:
-                task: LocalQuantumTask = self._device.run(
-                    task_specification=circuit, shots=shots
-                )
-                tasks.append(task)
+            batch_task: LocalQuantumTaskBatch = self._device.run_batch(
+                task_specifications=circuits, shots=shots
+            )
+            tasks: list[LocalQuantumTask] = [LocalQuantumTask(r) for r in batch_task.results]
 
         except Exception as ex:
             logger.error("During creation of tasks an error occurred: %s", ex)
