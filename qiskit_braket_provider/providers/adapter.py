@@ -495,7 +495,7 @@ def to_braket(
         return Circuit(braket_circuit.result_types).add_verbatim_box(
             Circuit(braket_circuit.instructions)
         )
-
+    print("Translated to ", braket_circuit, flush=True)
     return braket_circuit
 
 
